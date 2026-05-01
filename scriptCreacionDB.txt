@@ -1,0 +1,34 @@
+-- phpMyAdmin SQL Dump
+-- version 5.2.3
+-- https://www.phpmyadmin.net/
+--
+-- Servidor: 127.0.0.1:3307
+-- Tiempo de generación: 01-05-2026 a las 18:43:21
+-- Versión del servidor: 11.4.9-MariaDB
+-- Versión de PHP: 8.3.28
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+--
+-- Base de datos: `inventario_silpp`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `lote`
+--
+
+DROP TABLE IF EXISTS `lote`;
+CREATE TABLE IF NOT EXISTS `lote` (
+  `id_lote` varchar(50) NOT NULL,
+  `sku_id` varchar(50) DEFAULT NULL,
+  `fecha_fabricacion` date DEFAULT NULL,
+  `fecha_caducidad` date DEFAULT NULL,
+  `status` enum('Disponible','Cuarentena','Vencido') DEFAULT NULL,
+  PRIMARY KEY (`id_lote`),
+  KEY `sku_id` (`sku_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+COMMIT;

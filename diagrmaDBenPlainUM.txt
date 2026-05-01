@@ -1,0 +1,154 @@
+@startuml
+skinparam classAttributeIconSize 0
+title Arquitectura Final Normalizada - Sistema de Inventario (ITA)
+
+package "Catálogos Maestros (Global)" {
+    class Producto {
+        +sku_id : String [PK]
+        +nombre : String
+        +descripcion : String
+        +categoria : String
+        +marca : String
+        +url_img : String
+        +contenido_valor : Float
+        +es_perecedero : Boolean
+    }
+
+    class CodigoBarras {
+        +codigo_ean : String [PK]
+        +sku_id : String [FK]
+    }
+
+    class UnidadMedida {
+        +unidad_id : Int [PK]
+        +nombre_unidad : String
+        +abreviatura : String
+        +es_fraccionable : Boolean
+    }
+}
+
+package "Estructura Física y Áreas" {
+    class Area {
+        +id_area : Int [PK]
+        +nombre_area : String -- Almacen, Exhibicion, Devolucion
+    }
+
+    class Ubicacion {
+        +id_ubicacion : Int [PK]
+        +id_area : Int [FK]
+        +pasillo : String
+        +rack : String
+        +nivel : String
+    }
+}
+
+package "Inventario y Lotes" {
+    class Lote {
+        +id_lote : String [PK]
+        +sku_id : String [FK]
+        +fecha_fabricacion : Date
+        +fecha_caducidad : Date
+        +status : Enum -- Disponible, Cuarentena, Vencido
+    }
+
+    class Entrada {
+        +id_entrada : Int [PK]
+        +folio : String
+        +fecha_llegada : DateTime
+        +id_usuario : Int [FK]
+        +id_lote : String [FK]
+    }
+
+    class Existencia_Ubicacion {
+        +id_existencia : Int [PK]
+        +id_lote : String [FK]
+        +id_ubicacion : Int [FK]
+        +cantidad : Decimal
+    }
+}
+
+package "Transacciones y Trazabilidad" {
+    class TipoMovimiento {
+        +id_tipo : Int [PK]
+        +descripcion : String -- Reubicacion, Ajuste, Merma
+        +factor : Int -- (1 para suma, -1 para resta)
+    }
+
+    class Historial_Movimiento {
+        +id_movimiento : Int [PK]
+        +id_lote : String [FK]
+        +id_ubicacion : Int [FK] 
+        +id_usuario : Int [FK]
+        +id_tipo : Int [FK]
+        +qty_afectada : Decimal
+        +fecha_hora : DateTime
+    }
+
+    class Venta {
+        +id_venta : Int [PK]
+        +fecha_hora : DateTime
+    }
+
+    class DetalleVenta {
+        +id_detalle : Int [PK]
+        +id_venta : Int [FK]
+        +id_lote : String [FK]
+        +id_ubicacion : Int [FK]
+        +cantidad : Decimal
+        +precio_unitario : Decimal
+    }
+
+    class Merma {
+        +id_merma : Int [PK]
+        +id_lote : String [FK]
+        +id_ubicacion : Int [FK]
+        +id_usuario : Int [FK]
+        +fecha : DateTime
+        +motivo : String
+        +cantidad : Decimal
+        +url_foto_evidencia : String
+    }
+}
+
+package "Seguridad y Roles" {
+    class Usuario {
+        +id_usuario : Int [PK]
+        +nombre : String
+    }
+
+    class Rol {
+        +id_rol : Int [PK]
+        +nombre_rol : String -- Operativo, Tactico, Auditor
+    }
+
+    class Acceso {
+        +id_usuario : Int [FK]
+        +id_rol : Int [FK]
+    }
+}
+
+' Relaciones
+Producto "1" *-- "*" CodigoBarras
+Producto "*" -- "1" UnidadMedida
+Producto "1" -- "*" Lote
+
+Lote "1" -- "*" Existencia_Ubicacion
+Lote "1" -- "*" DetalleVenta
+Lote "1" -- "*" Merma
+Lote "1" -- "*" Historial_Movimiento
+Lote "1" -- "*" Entrada
+
+Area "1" -- "*" Ubicacion
+Ubicacion "1" -- "*" Existencia_Ubicacion
+Ubicacion "1" -- "*" Historial_Movimiento
+Ubicacion "1" -- "*" Merma
+Ubicacion "1" -- "*" DetalleVenta
+TipoMovimiento "1" -- "*" Historial_Movimiento
+
+Venta "1" *-- "*" DetalleVenta
+Usuario "1" -- "*" Merma
+Usuario "1" -- "*" Entrada
+Usuario "1" -- "*" Historial_Movimiento
+Usuario "1" -- "*" Acceso
+Rol "1" -- "*" Acceso
+@enduml

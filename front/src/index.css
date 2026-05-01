@@ -1,0 +1,57 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* ─── Dark Industrial Premium ─── */
+  --color-bg:       #020617;   /* slate-950 */
+  --color-surface:  #0f172a;   /* slate-900 */
+  --color-card:     #1e293b;   /* slate-800 */
+  --color-border:   #334155;   /* slate-700 */
+  --color-muted:    #94a3b8;   /* slate-400 */
+  --color-text:     #f1f5f9;   /* slate-100 */
+
+  --color-primary:  #0ea5e9;   /* sky-500 */
+  --color-primary-hover: #38bdf8; /* sky-400 */
+  --color-success:  #22c55e;   /* emerald-500 */
+  --color-warning:  #f59e0b;   /* amber-500 */
+  --color-danger:   #ef4444;   /* red-500 */
+
+  --color-glass:    rgba(15, 23, 42, 0.60);
+  --color-glass-border: rgba(148, 163, 184, 0.12);
+}
+
+/* ─── Base resets ─── */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Glassmorphism utility ─── */
+.glass {
+  background: var(--color-glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--color-glass-border);
+}
+
+/* ─── Scrollbar styling ─── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 9999px; }
+
+/* ─── Smooth transitions ─── */
+a, button { transition: all 0.2s ease; }
+
+/* ─── Focus ring ─── */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
