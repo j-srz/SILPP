@@ -55,3 +55,126 @@ a, button { transition: all 0.2s ease; }
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* ─── Scanner viewport ─── */
+.scanner-viewport-wrapper {
+  position: relative;
+  background: var(--color-surface);
+}
+
+.scanner-viewport-wrapper #scanner-viewport {
+  width: 100%;
+  min-height: 280px;
+}
+
+/* Override html5-qrcode internal styles for dark theme */
+.scanner-viewport-wrapper #scanner-viewport video {
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+/* Hide the default qr-shaded-region from html5-qrcode (we use our own overlay) */
+.scanner-viewport-wrapper #scanner-viewport #qr-shaded-region {
+  border-color: transparent !important;
+}
+
+/* ─── Overlay mask: dark edges + transparent center ─── */
+.scanner-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  /* Radial transparent hole in the center */
+  background:
+    linear-gradient(to bottom,
+      rgba(2, 6, 23, 0.75) 0%,
+      rgba(2, 6, 23, 0.75) 22%,
+      transparent 22%,
+      transparent 78%,
+      rgba(2, 6, 23, 0.75) 78%,
+      rgba(2, 6, 23, 0.75) 100%
+    );
+  -webkit-mask-image: none;
+}
+
+/* Side masks (left and right of the scan zone) */
+.scanner-overlay::before,
+.scanner-overlay::after {
+  content: '';
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  width: 15%;
+  background: rgba(2, 6, 23, 0.75);
+}
+.scanner-overlay::before { left: 0; }
+.scanner-overlay::after  { right: 0; }
+
+/* ─── Corner brackets for scan zone ─── */
+.scanner-corners {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.scanner-corners .corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: var(--color-primary);
+  border-style: solid;
+  border-width: 0;
+}
+.scanner-corners .corner.tl { top: 22%; left: 15%; border-top-width: 3px; border-left-width: 3px; border-radius: 6px 0 0 0; }
+.scanner-corners .corner.tr { top: 22%; right: 15%; border-top-width: 3px; border-right-width: 3px; border-radius: 0 6px 0 0; }
+.scanner-corners .corner.bl { bottom: 22%; left: 15%; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 6px; }
+.scanner-corners .corner.br { bottom: 22%; right: 15%; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 6px 0; }
+
+/* ─── Animated scan laser (confined to scan zone) ─── */
+.scanner-laser {
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  box-shadow: 0 0 12px var(--color-primary), 0 0 40px rgba(14, 165, 233, 0.3);
+  animation: scanLaser 2.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 8;
+  border-radius: 2px;
+}
+
+@keyframes scanLaser {
+  0%   { top: 24%; opacity: 0.4; }
+  50%  { top: 74%; opacity: 1; }
+  100% { top: 24%; opacity: 0.4; }
+}
+
+/* ─── Success pulse ─── */
+.scanner-success-pulse {
+  animation: successPulse 0.6s ease-out;
+}
+
+@keyframes successPulse {
+  0%   { transform: scale(0.5); opacity: 0; }
+  50%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ─── Entrance animation ─── */
+.animate-in {
+  animation: animateIn 0.3s ease-out;
+}
+
+@keyframes animateIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+

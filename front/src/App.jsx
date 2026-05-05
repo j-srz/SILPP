@@ -8,6 +8,8 @@ import Lotes from './pages/Lotes';
 import LoteDetail from './pages/LoteDetail';
 import IngresarLote from './pages/IngresarLote';
 import Operations from './pages/Operations';
+import Scanner from './pages/Scanner';
+import ProductDetail from './pages/ProductDetail';
 
 export default function App() {
   return (
@@ -24,6 +26,7 @@ export default function App() {
             {/* Future routes */}
             <Route path="/lotes" element={<Lotes />} />
             <Route path="/lotes/:id" element={<LoteDetail />} />
+            <Route path="/productos/:sku" element={<ProductDetail />} />
             <Route path="/ingresar" element={<IngresarLote />} />
             
             <Route path="/operaciones" element={<Operations />} />
@@ -45,7 +48,7 @@ export default function App() {
             <Route path="/usuarios" element={<PlaceholderPage title="Gestión de Usuarios" />} />
 
             {/* Other existing Placeholders */}
-            <Route path="/scanner" element={<PlaceholderPage title="Escáner" />} />
+            <Route path="/scanner" element={<Scanner />} />
             <Route path="/buzon" element={<PlaceholderPage title="Buzón" />} />
             <Route path="/herramientas" element={<PlaceholderPage title="Herramientas" />} />
             <Route path="/menu" element={<PlaceholderPage title="Menú" />} />

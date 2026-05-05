@@ -858,7 +858,106 @@ Esta sección documenta los errores detectados en el documento fuente (V3.docx) 
 
 ---
 
-## 14. Fuentes de Información
+## 15. Adenda: Módulo de Escaneo Híbrido (Implementación Real)
+
+> Esta sección documenta las funcionalidades implementadas que evolucionaron más allá del diseño original descrito en §12.1. Se incluyen como adenda para mantener la trazabilidad entre los requisitos y el sistema entregado.
+
+### 15.1 Caso de Uso: Escaneo Híbrido (UC-E.1)
+
+| Campo | Detalle |
+|-------|---------|
+| **Tipo** | Transversal (invocado por múltiples módulos) |
+| **Actores** | Operativo, Táctico, Auditor |
+| **Objetivo** | Identificar un lote o producto mediante cámara o entrada manual, con detección automática del tipo de código. |
+| **Precondición** | El usuario está autenticado en el sistema. |
+| **Resultado** | Según el tipo de código detectado, el sistema presenta la información relevante y ofrece acciones contextuales. |
+
+**Flujo principal:**
+
+1. El usuario accede al módulo de escaneo desde la barra de navegación inferior.
+2. El sistema verifica el contexto de seguridad del navegador (HTTPS o localhost).
+3. **Si es seguro:** Se activa la cámara trasera con un overlay de máscara visual (bordes opacos + recuadro central transparente) y una animación de láser confinada al área de lectura.
+4. **Si no es seguro:** Se muestra una alerta explicativa y se fuerza el modo Manual.
+5. Al detectar un código (cámara) o al enviar texto (manual), el sistema ejecuta la detección automática:
+
+| Formato del código | Acción del sistema |
+|---|---|
+| Prefijo `LOT-` | Busca en `Lote.id_lote` → Muestra el **Expediente del Lote** (stock, ubicaciones, fechas) |
+| Código numérico (EAN) | Busca en `CodigoBarras.codigo_ean` → Muestra el **Producto + Lista de Lotes activos** (FEFO) |
+| Código alfanumérico (SKU) | Busca en `Producto.sku_id` → Muestra el **Producto + Lista de Lotes activos** (FEFO) |
+| Sin coincidencia | Muestra estado "No encontrado" con el código escaneado |
+
+6. Al detectar un código válido:
+   - La cámara se detiene inmediatamente (**Stop-on-Success**) para evitar lecturas duplicadas.
+   - Se emite **feedback háptico** (vibración de 100ms) y un **beep corto** (1200Hz × 120ms via Web Audio API).
+   - Se muestra un flash verde de confirmación ("¡Código detectado!") durante 1.5 segundos.
+7. El usuario puede consultar el resultado y luego presionar **"Escanear otro"** para reiniciar la cámara.
+
+**Subflujos:**
+
+- **S-1 — Autocompletado:** En el campo de entrada manual, el sistema ofrece sugerencias en tiempo real (búsqueda parcial con debounce de 300ms) consultando lotes y productos simultáneamente. Máximo 5 sugerencias.
+- **S-2 — Navegación a detalle:** Desde los resultados, el usuario puede navegar al Expediente del Lote (`/lotes/:id`) o al Expediente del Producto (`/productos/:sku`), con soporte de navegación `navigate(-1)` para retorno.
+
+**Excepciones:**
+
+| Código | Situación | Acción del sistema |
+|--------|-----------|-------------------|
+| E-1 | Permiso de cámara denegado | Muestra mensaje explicativo y botón "Reintentar" |
+| E-2 | Dispositivo sin cámara | Muestra mensaje y fuerza modo Manual |
+| E-3 | Contexto inseguro (HTTP + IP) | Alerta con `window.location.origin` y fuerza modo Manual |
+| E-4 | Error de red en la consulta | Muestra mensaje de error con opción de reintento |
+
+---
+
+### 15.2 Caso de Uso: Consulta de Expediente de Producto (UC-E.2)
+
+| Campo | Detalle |
+|-------|---------|
+| **Tipo** | Consulta |
+| **Actores** | Operativo, Táctico, Auditor |
+| **Objetivo** | Visualizar la ficha completa de un producto y todos sus lotes activos ordenados por caducidad (FEFO). |
+| **Precondición** | El SKU existe en la tabla `Producto`. |
+
+**Flujo:**
+
+1. El usuario accede vía escaneo de EAN/SKU o navegación directa a `/productos/:sku`.
+2. El sistema muestra: nombre, descripción, marca, categoría, código EAN, indicador de perecedero.
+3. Se muestran métricas resumen: total de lotes activos y stock global.
+4. Se lista cada lote activo (status `Disponible` o `Cuarentena`) con: ID, stock actual, días para caducar, fecha de caducidad.
+5. El usuario puede hacer clic en cualquier lote para ver su Expediente completo.
+
+**Endpoint:** `GET /api/productos/:sku`
+
+---
+
+### 15.3 Endpoint de Sugerencias en Tiempo Real
+
+**Ruta:** `GET /api/scan/suggest?q=<texto_parcial>`
+
+| Aspecto | Detalle |
+|---------|---------|
+| **Mínimo de caracteres** | 2 |
+| **Máximo de resultados** | 5 (3 lotes + 3 productos, truncado a 5) |
+| **Campos buscados (Lotes)** | `Lote.id_lote`, `Lote.sku_id` |
+| **Campos buscados (Productos)** | `Producto.sku_id`, `Producto.nombre`, `Producto.marca`, `CodigoBarras.codigo_ean` |
+| **Formato de respuesta** | `{ tipo, valor, label, sublabel, status }` por cada sugerencia |
+
+---
+
+### 15.4 Decisiones Técnicas del Módulo de Escaneo
+
+| Decisión | Justificación |
+|----------|--------------|
+| Usar `html5-qrcode` en lugar de ZXing | Menor bundle size, API más simple, soporte de códigos 1D y 2D |
+| Overlay CSS puro (sin canvas) | Menor consumo de recursos; compatible con todos los navegadores |
+| Feedback vía `AudioContext` (sin archivos) | Elimina dependencia de archivos `.mp3`; funciona offline |
+| `navigator.vibrate()` con try-catch | API no disponible en iOS Safari; el catch evita errores silenciosos |
+| Debounce de 300ms en autocomplete | Balance entre responsividad y carga del servidor |
+| `AbortController` por cada request de sugerencias | Cancela requests obsoletos cuando el usuario sigue escribiendo |
+
+---
+
+## 16. Fuentes de Información
 
 - Control de Inventarios. (2017). *Tesis de licenciatura*. Instituto Tecnológico de Pabellón de Arteaga.  
   https://pabellon.tecnm.mx/CENTRODEINFORMACION/app/files/101050051.pdf
@@ -872,3 +971,4 @@ Esta sección documenta los errores detectados en el documento fuente (V3.docx) 
 ---
 
 *Documentación técnica elaborada a partir del documento V3.docx — Instituto Tecnológico de Aguascalientes, 2026.*
+*Adenda §15 incorporada el 5 de mayo de 2026 para reflejar la implementación real del Módulo de Escaneo Híbrido.*

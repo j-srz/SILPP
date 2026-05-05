@@ -84,7 +84,7 @@ export default function LoteDetail() {
       {/* ─── Back Button & Actions ─── */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigate('/lotes')}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-medium text-muted hover:text-text transition-colors"
         >
           <ArrowLeft size={16} /> Volver

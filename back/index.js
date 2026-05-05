@@ -17,6 +17,7 @@ const authRoutes        = require('./src/routes/auth.routes');
 const lotesRoutes       = require('./src/routes/lotes.routes');
 const productosRoutes   = require('./src/routes/productos.routes');
 const usuariosRoutes    = require('./src/routes/usuarios.routes');
+const scanRoutes        = require('./src/routes/scan.routes');
 const pool              = require('./src/config/db');
 
 const app  = express();
@@ -40,6 +41,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/lotes', lotesRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/scan', scanRoutes);
 
 // Health-check básico
 app.get('/api/health', async (_req, res) => {
@@ -66,6 +68,12 @@ app.listen(PORT, () => {
   console.log(`   ├── POST  /api/auth/login`);
   console.log(`   ├── POST  /api/lotes`);
   console.log(`   ├── GET   /api/lotes/search`);
+  console.log(`   ├── GET   /api/lotes/:id`);
+  console.log(`   ├── GET   /api/lotes/:id/trazabilidad`);
+  console.log(`   ├── GET   /api/productos/search`);
+  console.log(`   ├── GET   /api/productos/:sku`);
+  console.log(`   ├── GET   /api/scan?code=`);
+  console.log(`   ├── GET   /api/scan/suggest?q=`);
   console.log(`   ├── GET   /api/usuarios`);
   console.log(`   ├── POST  /api/usuarios`);
   console.log(`   ├── PATCH /api/usuarios/:id/status`);
