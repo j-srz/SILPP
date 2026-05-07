@@ -6,6 +6,7 @@ import {
   BoxesIcon, MapPin, ShieldAlert, CheckCircle2, Flashlight
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { isNativeBarcodeSupported, NativeBarcodeScanner } from '../utils/nativeBarcodeScanner';
 import client from '../api/client';
 import EmptyState from '../components/EmptyState';
 
@@ -63,17 +64,28 @@ export default function Scanner() {
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Engine detection: BarcodeDetector nativo (ML Kit) vs html5-qrcode (ZXing.js)
+  const [useNativeDetector, setUseNativeDetector] = useState(false);
+
   const html5QrcodeRef = useRef(null);
+  const nativeScannerRef = useRef(null);
   const isProcessingRef = useRef(false);
   const viewportReady = useRef(false);
   const suggestAbort = useRef(null);
   const trackRef = useRef(null);
 
-  // ── HTTPS check on mount ──
+  // ── HTTPS check + native detector detection on mount ──
   useEffect(() => {
     if (!isSecureContext()) {
       setInsecureCtx(true);
       setMode('manual');
+    }
+    // Detect native BarcodeDetector (Chrome Android → ML Kit, Safari 17.2+ → Vision)
+    if (isNativeBarcodeSupported()) {
+      setUseNativeDetector(true);
+      console.log('[Scanner] Motor nativo BarcodeDetector detectado — usando ML Kit');
+    } else {
+      console.log('[Scanner] BarcodeDetector no disponible — usando ZXing.js (html5-qrcode)');
     }
   }, []);
 
@@ -89,7 +101,10 @@ export default function Scanner() {
     setLastScanned(code.trim());
 
     // ── Stop-on-success: freeze camera immediately ──
-    if (html5QrcodeRef.current) {
+    if (nativeScannerRef.current) {
+      nativeScannerRef.current.pauseDetection();
+      setCameraActive(false);
+    } else if (html5QrcodeRef.current) {
       try {
         const state = html5QrcodeRef.current.getState();
         if (state === 2) await html5QrcodeRef.current.stop();
@@ -120,8 +135,42 @@ export default function Scanner() {
     }
   }, []);
 
+  // ── Shared: apply aggressive hardware constraints to a track ──
+  const applyHardwareConstraints = useCallback(async (track) => {
+    try {
+      const caps = track.getCapabilities();
+      const advancedConstraints = [];
+
+      if (caps.focusMode?.includes('continuous')) {
+        advancedConstraints.push({ focusMode: 'continuous' });
+      }
+      if (caps.exposureMode?.includes('continuous')) {
+        advancedConstraints.push({ exposureMode: 'continuous' });
+      }
+      if (caps.exposureCompensation) {
+        const minEV = caps.exposureCompensation.min;
+        advancedConstraints.push({ exposureCompensation: Math.max(minEV, -1.0) });
+      }
+      if (caps.whiteBalanceMode?.includes('continuous')) {
+        advancedConstraints.push({ whiteBalanceMode: 'continuous' });
+      }
+      if (caps.zoom) {
+        advancedConstraints.push({ zoom: Math.min(1.5, caps.zoom.max || 1) });
+      }
+
+      if (advancedConstraints.length > 0) {
+        await track.applyConstraints({ advanced: advancedConstraints });
+      }
+
+      trackRef.current = track;
+      setTorchAvailable(!!caps.torch);
+    } catch (e) {
+      console.warn('Ajustes de hardware no disponibles:', e);
+    }
+  }, []);
+
   // ── Camera lifecycle ──
-const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async () => {
     if (insecureCtx) return;
 
     const el = document.getElementById('scanner-viewport');
@@ -133,6 +182,36 @@ const startCamera = useCallback(async () => {
     setCameraError(null);
 
     try {
+      // ═══════════════════════════════════════════════════════════════
+      // PATH A: Motor nativo BarcodeDetector (ML Kit / Vision)
+      // Disponible en Chrome Android 83+, Safari 17.2+
+      // 3-5x más rápido que ZXing.js, mayor precisión con brillo
+      // ═══════════════════════════════════════════════════════════════
+      if (useNativeDetector) {
+        // Limpiar instancia previa
+        if (nativeScannerRef.current) {
+          await nativeScannerRef.current.stop();
+          nativeScannerRef.current = null;
+        }
+
+        const scanner = new NativeBarcodeScanner('scanner-viewport');
+        nativeScannerRef.current = scanner;
+
+        await scanner.start((decodedText) => handleScan(decodedText));
+
+        // Aplicar constraints de hardware al track nativo
+        const track = scanner.getRunningTrack();
+        if (track) await applyHardwareConstraints(track);
+
+        setCameraActive(true);
+        viewportReady.current = true;
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // PATH B: Fallback html5-qrcode (ZXing.js)
+      // Para Firefox, Safari <17.2, y navegadores sin BarcodeDetector
+      // ═══════════════════════════════════════════════════════════════
       if (html5QrcodeRef.current) {
         try {
           await html5QrcodeRef.current.stop();
@@ -144,86 +223,45 @@ const startCamera = useCallback(async () => {
       const scanner = new Html5Qrcode('scanner-viewport');
       html5QrcodeRef.current = scanner;
 
-      // PASO 1: Configuración optimizada con ROI (qrbox) para reducir área de proceso ~60%
       await scanner.start(
         { facingMode: 'environment' },
         {
-          fps: 15,                             // Balance: responsivo sin drenar batería
-          qrbox: { width: 280, height: 160 },  // ROI: solo analiza la zona central
-          aspectRatio: 1.7778,                  // 16:9 para aprovechar ancho en móviles
-          disableFlip: true,                    // Cámara trasera no necesita espejo
+          fps: 15,
+          qrbox: { width: 280, height: 160 },
+          aspectRatio: 1.7778,
+          disableFlip: true,
         },
         (decodedText) => handleScan(decodedText),
         () => { /* frame sin detección */ }
       );
 
-      // PASO 2: Ajustes agresivos de hardware para enfoque y exposición
-      try {
-        const track = scanner.getRunningTrack();
-        const caps = track.getCapabilities();
-        const advancedConstraints = [];
-
-        // Enfoque continuo: evita que el foco "se pierda" con empaques brillantes
-        if (caps.focusMode?.includes('continuous')) {
-          advancedConstraints.push({ focusMode: 'continuous' });
-        }
-
-        // Exposición continua: se adapta al brillo variable de empaques
-        if (caps.exposureMode?.includes('continuous')) {
-          advancedConstraints.push({ exposureMode: 'continuous' });
-        }
-
-        // Compensación de exposición negativa: reduce el "lavado" por reflejos
-        if (caps.exposureCompensation) {
-          const minEV = caps.exposureCompensation.min;
-          const targetEV = Math.max(minEV, -1.0);
-          advancedConstraints.push({ exposureCompensation: targetEV });
-        }
-
-        // Balance de blancos continuo
-        if (caps.whiteBalanceMode?.includes('continuous')) {
-          advancedConstraints.push({ whiteBalanceMode: 'continuous' });
-        }
-
-        // Zoom ligero (1.5x): acerca el código sin mover el celular
-        if (caps.zoom) {
-          const maxZoom = caps.zoom.max || 1;
-          const targetZoom = Math.min(1.5, maxZoom);
-          advancedConstraints.push({ zoom: targetZoom });
-        }
-
-        if (advancedConstraints.length > 0) {
-          await track.applyConstraints({ advanced: advancedConstraints });
-        }
-
-        // Guardar referencia al track para control de torch
-        trackRef.current = track;
-        setTorchAvailable(!!caps.torch);
-      } catch (e) {
-        console.warn('Ajustes de hardware no disponibles en este dispositivo:', e);
-      }
+      // Aplicar constraints al track de html5-qrcode
+      const track = scanner.getRunningTrack();
+      if (track) await applyHardwareConstraints(track);
 
       setCameraActive(true);
       viewportReady.current = true;
     } catch (err) {
       console.error('Camera error:', err);
-      // ... (mantén tu lógica de manejo de errores aquí abajo)
       let msg = 'No se pudo acceder a la cámara. Verifica los permisos del navegador.';
-      if (typeof err === 'string') {
-        if (err.includes('NotAllowedError') || err.includes('Permission')) {
-          msg = 'Permiso de cámara denegado. Habilítalo en la configuración del navegador.';
-        } else if (err.includes('NotFoundError') || err.includes('device')) {
-          msg = 'No se detectó ninguna cámara en este dispositivo.';
-        } else {
-          msg = err;
-        }
+      const errStr = typeof err === 'string' ? err : err?.message || '';
+      if (errStr.includes('NotAllowedError') || errStr.includes('Permission')) {
+        msg = 'Permiso de cámara denegado. Habilítalo en la configuración del navegador.';
+      } else if (errStr.includes('NotFoundError') || errStr.includes('device')) {
+        msg = 'No se detectó ninguna cámara en este dispositivo.';
       }
       setCameraError(msg);
       setCameraActive(false);
     }
-  }, [handleScan, insecureCtx]);
+  }, [handleScan, insecureCtx, useNativeDetector, applyHardwareConstraints]);
 
   const stopCamera = useCallback(async () => {
+    // Detener motor nativo
+    if (nativeScannerRef.current) {
+      await nativeScannerRef.current.stop();
+      nativeScannerRef.current = null;
+    }
+    // Detener html5-qrcode
     if (html5QrcodeRef.current) {
       try {
         const state = html5QrcodeRef.current.getState();
@@ -325,7 +363,14 @@ const startCamera = useCallback(async () => {
   const restartScanner = () => {
     resetScan();
     if (mode === 'camera' && !insecureCtx) {
-      setTimeout(() => startCamera(), 400);
+      // Motor nativo: solo resume la detección (cámara sigue viva)
+      if (nativeScannerRef.current) {
+        setCameraActive(true);
+        nativeScannerRef.current.resumeDetection((code) => handleScan(code));
+      } else {
+        // html5-qrcode: reiniciar cámara completa
+        setTimeout(() => startCamera(), 400);
+      }
     }
   };
 
