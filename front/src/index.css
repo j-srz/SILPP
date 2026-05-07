@@ -67,12 +67,14 @@ a, button { transition: all 0.2s ease; }
   min-height: 280px;
 }
 
-/* Override html5-qrcode internal styles for dark theme */
+/* Override html5-qrcode internal styles — optimized for barcode scanning */
 .scanner-viewport-wrapper #scanner-viewport video {
   border-radius: 16px;
   object-fit: cover;
-
-  filter: contrast(1.2) brightness(0.9);
+  /* Pipeline optimizado: mayor contraste para separar barras del fondo,
+     brillo reducido para compensar empaques brillantes/reflectantes,
+     desaturación total para estética industrial (ZXing trabaja en grayscale) */
+  filter: contrast(1.4) brightness(0.85) saturate(0);
 }
 
 /* Hide the default qr-shaded-region from html5-qrcode (we use our own overlay) */

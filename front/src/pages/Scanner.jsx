@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ScanLine, Camera, CameraOff, Keyboard, Search, Loader2,
   Package, Clock, ChevronRight, AlertTriangle, RotateCcw,
-  BoxesIcon, MapPin, ShieldAlert, CheckCircle2
+  BoxesIcon, MapPin, ShieldAlert, CheckCircle2, Flashlight
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import client from '../api/client';
@@ -54,6 +54,10 @@ export default function Scanner() {
   const [lastScanned, setLastScanned] = useState('');
   const [scanSuccess, setScanSuccess] = useState(false); // flash state
 
+  // Torch (flashlight) state
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+
   // Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
@@ -63,6 +67,7 @@ export default function Scanner() {
   const isProcessingRef = useRef(false);
   const viewportReady = useRef(false);
   const suggestAbort = useRef(null);
+  const trackRef = useRef(null);
 
   // ── HTTPS check on mount ──
   useEffect(() => {
@@ -139,37 +144,63 @@ const startCamera = useCallback(async () => {
       const scanner = new Html5Qrcode('scanner-viewport');
       html5QrcodeRef.current = scanner;
 
-      // PASO 1: Iniciamos con una sola llave para evitar el error
+      // PASO 1: Configuración optimizada con ROI (qrbox) para reducir área de proceso ~60%
       await scanner.start(
-        { facingMode: 'environment' }, 
-        { 
-          fps: 20, // Subimos a 20 para que no se vea "laggeado"
-          aspectRatio: 1.5,
-          // Si quieres limitar el área de lectura, descomenta la siguiente línea:
-          // qrbox: { width: 250, height: 180 } 
+        { facingMode: 'environment' },
+        {
+          fps: 15,                             // Balance: responsivo sin drenar batería
+          qrbox: { width: 280, height: 160 },  // ROI: solo analiza la zona central
+          aspectRatio: 1.7778,                  // 16:9 para aprovechar ancho en móviles
+          disableFlip: true,                    // Cámara trasera no necesita espejo
         },
         (decodedText) => handleScan(decodedText),
-        () => { /* frame no detectado */ }
+        () => { /* frame sin detección */ }
       );
 
-      // PASO 2: Aplicamos el enfoque y balance de blancos al "track" ya encendido
+      // PASO 2: Ajustes agresivos de hardware para enfoque y exposición
       try {
         const track = scanner.getRunningTrack();
-        const capabilities = track.getCapabilities();
-        
-        const constraints = { advanced: [] };
-        if (capabilities.focusMode?.includes('continuous')) {
-          constraints.advanced.push({ focusMode: 'continuous' });
-        }
-        if (capabilities.whiteBalanceMode?.includes('continuous')) {
-          constraints.advanced.push({ whiteBalanceMode: 'continuous' });
+        const caps = track.getCapabilities();
+        const advancedConstraints = [];
+
+        // Enfoque continuo: evita que el foco "se pierda" con empaques brillantes
+        if (caps.focusMode?.includes('continuous')) {
+          advancedConstraints.push({ focusMode: 'continuous' });
         }
 
-        if (constraints.advanced.length > 0) {
-          await track.applyConstraints(constraints);
+        // Exposición continua: se adapta al brillo variable de empaques
+        if (caps.exposureMode?.includes('continuous')) {
+          advancedConstraints.push({ exposureMode: 'continuous' });
         }
+
+        // Compensación de exposición negativa: reduce el "lavado" por reflejos
+        if (caps.exposureCompensation) {
+          const minEV = caps.exposureCompensation.min;
+          const targetEV = Math.max(minEV, -1.0);
+          advancedConstraints.push({ exposureCompensation: targetEV });
+        }
+
+        // Balance de blancos continuo
+        if (caps.whiteBalanceMode?.includes('continuous')) {
+          advancedConstraints.push({ whiteBalanceMode: 'continuous' });
+        }
+
+        // Zoom ligero (1.5x): acerca el código sin mover el celular
+        if (caps.zoom) {
+          const maxZoom = caps.zoom.max || 1;
+          const targetZoom = Math.min(1.5, maxZoom);
+          advancedConstraints.push({ zoom: targetZoom });
+        }
+
+        if (advancedConstraints.length > 0) {
+          await track.applyConstraints({ advanced: advancedConstraints });
+        }
+
+        // Guardar referencia al track para control de torch
+        trackRef.current = track;
+        setTorchAvailable(!!caps.torch);
       } catch (e) {
-        console.warn("Ajustes de hardware no disponibles en este dispositivo:", e);
+        console.warn('Ajustes de hardware no disponibles en este dispositivo:', e);
       }
 
       setCameraActive(true);
@@ -201,9 +232,22 @@ const startCamera = useCallback(async () => {
       } catch { /* ignore */ }
       html5QrcodeRef.current = null;
     }
+    trackRef.current = null;
+    setTorchOn(false);
+    setTorchAvailable(false);
     setCameraActive(false);
     viewportReady.current = false;
   }, []);
+
+  // ── Torch (flashlight) toggle ──
+  const toggleTorch = useCallback(async () => {
+    if (!trackRef.current) return;
+    try {
+      const next = !torchOn;
+      await trackRef.current.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch { /* dispositivo no soporta torch */ }
+  }, [torchOn]);
 
   // Start/stop camera when mode changes
   useEffect(() => {
@@ -405,6 +449,21 @@ const startCamera = useCallback(async () => {
       {mode === 'camera' && !insecureCtx && (
         <div className="scanner-viewport-wrapper rounded-2xl overflow-hidden border border-border bg-surface relative">
           <div id="scanner-viewport" className="w-full" style={{ minHeight: '280px' }} />
+
+          {/* Torch (flashlight) floating button */}
+          {cameraActive && torchAvailable && (
+            <button
+              onClick={toggleTorch}
+              className={`absolute top-3 right-3 z-20 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                torchOn
+                  ? 'bg-warning text-bg shadow-lg shadow-warning/30'
+                  : 'bg-surface/80 text-muted border border-border hover:text-text'
+              }`}
+              title={torchOn ? 'Apagar linterna' : 'Encender linterna'}
+            >
+              <Flashlight size={18} />
+            </button>
+          )}
 
           {/* Overlay mask: dark edges + transparent center */}
           {cameraActive && <div className="scanner-overlay" />}
