@@ -116,10 +116,9 @@ export default function Scanner() {
   }, []);
 
   // ── Camera lifecycle ──
-  const startCamera = useCallback(async () => {
+const startCamera = useCallback(async () => {
     if (insecureCtx) return;
 
-    // Wait for DOM element
     const el = document.getElementById('scanner-viewport');
     if (!el) {
       setCameraError('No se pudo inicializar el visor de cámara.');
@@ -129,7 +128,6 @@ export default function Scanner() {
     setCameraError(null);
 
     try {
-      // Clean previous instance if any
       if (html5QrcodeRef.current) {
         try {
           await html5QrcodeRef.current.stop();
@@ -141,23 +139,44 @@ export default function Scanner() {
       const scanner = new Html5Qrcode('scanner-viewport');
       html5QrcodeRef.current = scanner;
 
+      // PASO 1: Iniciamos con una sola llave para evitar el error
       await scanner.start(
+        { facingMode: 'environment' }, 
         { 
-          facingMode: 'environment',
-          advanced: [{ focusMode: "continuous" }, { whiteBalanceMode: "continuous" }]
+          fps: 20, // Subimos a 20 para que no se vea "laggeado"
+          aspectRatio: 1.5,
+          // Si quieres limitar el área de lectura, descomenta la siguiente línea:
+          // qrbox: { width: 250, height: 180 } 
         },
-        { 
-          fps: 10, 
-          // qrbox: { width: 280, height: 160 }, 
-          aspectRatio: 1.5 },
         (decodedText) => handleScan(decodedText),
-        () => { /* each non-decoded frame — ignore */ }
+        () => { /* frame no detectado */ }
       );
+
+      // PASO 2: Aplicamos el enfoque y balance de blancos al "track" ya encendido
+      try {
+        const track = scanner.getRunningTrack();
+        const capabilities = track.getCapabilities();
+        
+        const constraints = { advanced: [] };
+        if (capabilities.focusMode?.includes('continuous')) {
+          constraints.advanced.push({ focusMode: 'continuous' });
+        }
+        if (capabilities.whiteBalanceMode?.includes('continuous')) {
+          constraints.advanced.push({ whiteBalanceMode: 'continuous' });
+        }
+
+        if (constraints.advanced.length > 0) {
+          await track.applyConstraints(constraints);
+        }
+      } catch (e) {
+        console.warn("Ajustes de hardware no disponibles en este dispositivo:", e);
+      }
 
       setCameraActive(true);
       viewportReady.current = true;
     } catch (err) {
       console.error('Camera error:', err);
+      // ... (mantén tu lógica de manejo de errores aquí abajo)
       let msg = 'No se pudo acceder a la cámara. Verifica los permisos del navegador.';
       if (typeof err === 'string') {
         if (err.includes('NotAllowedError') || err.includes('Permission')) {
