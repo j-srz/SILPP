@@ -37,6 +37,124 @@ async function buscarProductos(req, res, next) {
 }
 
 // ════════════════════════════════════════════════════════════════════════
+// GET /api/productos/catalog — Catálogo Unificado con Agregación SQL
+// ════════════════════════════════════════════════════════════════════════
+//
+// Devuelve productos con stock_global, total_lotes y estado_critico
+// calculados en una sola query. Soporta búsqueda y paginación.
+//
+// Query params: q (búsqueda), page, limit
+
+async function catalogoProductos(req, res, next) {
+  try {
+    const { q, page = 1, limit = 20 } = req.query;
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Base WHERE clause for search
+    let whereClause = '';
+    const params = [];
+    if (q && q.trim()) {
+      const term = `%${q.trim()}%`;
+      whereClause = `WHERE (p.sku_id LIKE ? OR p.nombre LIKE ? OR p.marca LIKE ? OR cb_search.codigo_ean LIKE ?)`;
+      params.push(term, term, term, term);
+    }
+
+    // Count total for pagination
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(DISTINCT p.sku_id) AS total
+       FROM Producto p
+       LEFT JOIN CodigoBarras cb_search ON p.sku_id = cb_search.sku_id
+       ${whereClause}`,
+      params
+    );
+    const total = countRows[0].total;
+
+    // Main aggregated query
+    const [rows] = await pool.execute(
+      `SELECT
+         p.sku_id, p.nombre, p.descripcion, p.marca, p.categoria,
+         p.url_img, p.es_perecedero,
+         -- Agregación: stock global del producto (sum de todos los lotes activos)
+         COALESCE(agg.stock_global, 0)   AS stock_global,
+         -- Agregación: total de lotes activos con stock > 0
+         COALESCE(agg.total_lotes, 0)    AS total_lotes,
+         -- Agregación: días mínimos para caducar (lote más crítico)
+         agg.dias_critico
+       FROM Producto p
+       LEFT JOIN CodigoBarras cb_search ON p.sku_id = cb_search.sku_id
+       LEFT JOIN (
+         SELECT
+           l.sku_id,
+           SUM(lot_stock.stock_actual)   AS stock_global,
+           COUNT(*)                       AS total_lotes,
+           MIN(DATEDIFF(l.fecha_caducidad, CURDATE())) AS dias_critico
+         FROM Lote l
+         JOIN (
+           SELECT
+             hm.id_lote,
+             COALESCE(SUM(hm.qty_afectada * tm.factor), 0) AS stock_actual
+           FROM Historial_Movimiento hm
+           JOIN TipoMovimiento tm ON hm.id_tipo = tm.id_tipo
+           GROUP BY hm.id_lote
+           HAVING stock_actual > 0
+         ) lot_stock ON l.id_lote = lot_stock.id_lote
+         WHERE l.status IN ('Disponible', 'Cuarentena')
+         GROUP BY l.sku_id
+       ) agg ON p.sku_id = agg.sku_id
+       ${whereClause}
+       GROUP BY p.sku_id
+       ORDER BY p.nombre ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(limitNum), String(offset)]
+    );
+
+    // Fetch all barcodes for returned products in one batch
+    const skuIds = rows.map(r => r.sku_id);
+    let barcodeMap = {};
+    if (skuIds.length > 0) {
+      const placeholders = skuIds.map(() => '?').join(',');
+      const [cbRows] = await pool.execute(
+        `SELECT codigo_ean, sku_id FROM CodigoBarras WHERE sku_id IN (${placeholders})`,
+        skuIds
+      );
+      for (const cb of cbRows) {
+        if (!barcodeMap[cb.sku_id]) barcodeMap[cb.sku_id] = [];
+        barcodeMap[cb.sku_id].push(cb.codigo_ean);
+      }
+    }
+
+    const data = rows.map(r => ({
+      sku_id: r.sku_id,
+      nombre: r.nombre,
+      descripcion: r.descripcion,
+      marca: r.marca,
+      categoria: r.categoria,
+      url_img: r.url_img,
+      es_perecedero: Boolean(r.es_perecedero),
+      codigos_barras: barcodeMap[r.sku_id] || [],
+      stock_global: Number(r.stock_global),
+      total_lotes: Number(r.total_lotes),
+      dias_critico: r.dias_critico != null ? Number(r.dias_critico) : null,
+    }));
+
+    res.json({
+      success: true,
+      data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
 // GET /api/productos/:sku — Expediente de Producto
 // ════════════════════════════════════════════════════════════════════════
 
@@ -59,7 +177,7 @@ async function detalleProducto(req, res, next) {
 
     const producto = prodRows[0];
 
-    // 2. Código EAN
+    // 2. Todos los códigos de barras del producto (multi-barcode)
     const [cbRows] = await pool.execute(
       'SELECT codigo_ean FROM CodigoBarras WHERE sku_id = ?',
       [sku]
@@ -98,6 +216,8 @@ async function detalleProducto(req, res, next) {
         producto: {
           ...producto,
           es_perecedero: Boolean(producto.es_perecedero),
+          codigos_barras: cbRows.map(cb => cb.codigo_ean),
+          // Retrocompatibilidad: mantener codigo_ean como primer código
           codigo_ean: cbRows.length > 0 ? cbRows[0].codigo_ean : null,
         },
         lotes,
@@ -110,5 +230,5 @@ async function detalleProducto(req, res, next) {
   }
 }
 
-module.exports = { buscarProductos, detalleProducto };
+module.exports = { buscarProductos, catalogoProductos, detalleProducto };
 

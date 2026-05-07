@@ -1,7 +1,10 @@
 const { Router } = require('express');
-const { buscarProductos, detalleProducto } = require('../controllers/productos.controller');
+const { buscarProductos, catalogoProductos, detalleProducto } = require('../controllers/productos.controller');
 
 const router = Router();
+
+// GET /api/productos/catalog — Catálogo con agregación (stock global, lotes, estado crítico)
+router.get('/catalog', catalogoProductos);
 
 // GET /api/productos/search
 router.get('/search', buscarProductos);

@@ -309,4 +309,53 @@ async function sugerencias(req, res, next) {
   }
 }
 
-module.exports = { escanear, sugerencias };
+// ════════════════════════════════════════════════════════════════════════
+// GET /api/scan/barcode/:code?type=ean13 — Generador On-The-Fly
+// ════════════════════════════════════════════════════════════════════════
+//
+// Genera un código de barras SVG utilizando bwip-js y lo devuelve como
+// image/svg+xml directamente.
+// type: 'ean13' (default para productos), 'code128' (default para Lotes/SKUs)
+
+const bwipjs = require('bwip-js');
+
+async function generarBarcode(req, res, next) {
+  try {
+    const { code } = req.params;
+    let { type } = req.query;
+
+    if (!code) {
+      throw new AppError('El código a generar es requerido.', 400);
+    }
+
+    // Auto-detect if not explicitly provided
+    if (!type) {
+      if (/^\d{13}$/.test(code)) {
+        type = 'ean13';
+      } else {
+        type = 'code128';
+      }
+    }
+
+    // Generar SVG con bwip-js
+    const svg = bwipjs.toSVG({
+      bcid: type,           // Tipo de código (code128, ean13, etc)
+      text: code,           // El texto a codificar
+      includetext: true,    // Mostrar el texto debajo
+      textxalign: 'center', // Alineación del texto
+      backgroundcolor: 'ffffff', // Fondo blanco para buen contraste
+      padding: 5,           // Padding alrededor del código
+    });
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(svg);
+  } catch (err) {
+    // Si bwipjs falla (ej. caracteres inválidos para ean13)
+    if (err.message && err.message.includes('bwip')) {
+      return res.status(400).json({ success: false, message: 'Código no válido para este formato.', error: err.message });
+    }
+    next(err);
+  }
+}
+
+module.exports = { escanear, sugerencias, generarBarcode };

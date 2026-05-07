@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Package, Calendar, Barcode as BarcodeIcon, Loader2, ArrowLeft, ArrowRight, CheckCircle2, AlertTriangle } from 'lucide-react';
-import Barcode from 'react-barcode';
 import client from '../api/client';
 import useAuthStore from '../store/useAuthStore';
 import EmptyState from '../components/EmptyState';
@@ -314,14 +313,10 @@ export default function IngresarLote() {
           </p>
 
           <div className="bg-white p-6 rounded-xl flex items-center justify-center mb-8 inline-block">
-            <Barcode 
-              value={generatedLoteId} 
-              width={2} 
-              height={80} 
-              displayValue={true} 
-              background="#ffffff" 
-              lineColor="#000000" 
-              margin={0}
+            <img 
+              src={`http://localhost:3000/api/scan/barcode/${generatedLoteId}?type=code128`} 
+              alt={`Código de barras Code-128 ${generatedLoteId}`} 
+              className="h-20 object-contain filter contrast-125"
             />
           </div>
 

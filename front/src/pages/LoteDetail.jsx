@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, AlertTriangle, Package, Loader2 } from 'lucide-react';
-import Barcode from 'react-barcode';
 import client from '../api/client';
 import Timeline from '../components/Timeline';
 
@@ -205,15 +204,11 @@ export default function LoteDetail() {
       <div>
         <h3 className="text-lg font-bold text-text mb-4">Etiqueta:</h3>
         <div className="printable-card bg-card border border-border rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="bg-white px-4 py-2 rounded-xl flex items-center justify-center w-full md:w-auto overflow-hidden">
-            <Barcode 
-              value={lote.id_lote} 
-              width={2} 
-              height={60} 
-              displayValue={true} 
-              background="#ffffff" 
-              lineColor="#000000" 
-              margin={0}
+          <div className="bg-white px-4 py-2 rounded-xl flex items-center justify-center w-full md:w-auto overflow-hidden shadow-sm border border-border/50">
+            <img 
+              src={`http://localhost:3000/api/scan/barcode/${lote.id_lote}?type=code128`} 
+              alt={`Código de barras Code-128 ${lote.id_lote}`} 
+              className="h-16 object-contain filter contrast-125"
             />
           </div>
           <button

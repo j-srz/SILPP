@@ -101,17 +101,30 @@ export default function ProductDetail() {
               <span className="flex items-center gap-1 px-2 py-0.5 bg-surface border border-border rounded-lg text-xs font-mono text-muted">
                 SKU: {producto.sku_id}
               </span>
-              {producto.codigo_ean && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-surface border border-border rounded-lg text-xs font-mono text-muted">
-                  <Barcode size={11} /> {producto.codigo_ean}
-                </span>
-              )}
               {producto.es_perecedero && (
                 <span className="px-2 py-0.5 bg-warning/15 border border-warning/20 rounded-lg text-xs font-semibold text-warning">
                   Perecedero
                 </span>
               )}
             </div>
+            
+            {/* ─── Códigos de Barras Visuales ─── */}
+            {producto.codigos_barras && producto.codigos_barras.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted mb-3 uppercase tracking-wider">Identificadores (EAN)</p>
+                <div className="flex flex-wrap gap-4">
+                  {producto.codigos_barras.map(codigo => (
+                    <div key={codigo} className="bg-white p-2 rounded-lg border border-border/50 shadow-sm">
+                      <img 
+                        src={`http://localhost:3000/api/scan/barcode/${codigo}?type=ean13`} 
+                        alt={`Código de barras EAN-13 ${codigo}`} 
+                        className="h-12 object-contain filter contrast-125"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
