@@ -142,7 +142,10 @@ export default function Scanner() {
       html5QrcodeRef.current = scanner;
 
       await scanner.start(
-        { facingMode: 'environment' },
+        { 
+          facingMode: 'environment',
+          advanced: [{ focusMode: "continuous" }, { whiteBalanceMode: "continuous" }]
+        },
         { 
           fps: 10, 
           // qrbox: { width: 280, height: 160 }, 

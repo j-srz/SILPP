@@ -71,6 +71,8 @@ a, button { transition: all 0.2s ease; }
 .scanner-viewport-wrapper #scanner-viewport video {
   border-radius: 16px;
   object-fit: cover;
+
+  filter: contrast(1.2) brightness(0.9);
 }
 
 /* Hide the default qr-shaded-region from html5-qrcode (we use our own overlay) */
@@ -178,3 +180,35 @@ a, button { transition: all 0.2s ease; }
   }
 }
 
+
+@media print {
+  /* 1. Ocultamos todo el cuerpo de la página */
+  body * {
+    visibility: hidden;
+    background: none !important; /* Ahorra tinta */
+  }
+
+  /* 2. Hacemos visible solo el contenedor de la etiqueta y sus hijos */
+  .printable-card, .printable-card * {
+    visibility: visible;
+  }
+
+  /* 3. Posicionamos la etiqueta al inicio de la hoja */
+  .printable-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important; /* Quitamos bordes para que salga limpia */
+    box-shadow: none !important;
+    padding: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  /* 4. Ocultamos el botón de imprimir dentro de la propia etiqueta */
+  .print-hide {
+    display: none !important;
+  }
+}
