@@ -314,7 +314,7 @@ export default function IngresarLote() {
 
           <div className="bg-white p-6 rounded-xl flex items-center justify-center mb-8 inline-block">
             <img 
-              src={`http://localhost:3000/api/scan/barcode/${generatedLoteId}?type=code128`} 
+              src={`/api/scan/barcode/${generatedLoteId}?type=code128`} 
               alt={`Código de barras Code-128 ${generatedLoteId}`} 
               className="h-20 object-contain filter contrast-125"
             />

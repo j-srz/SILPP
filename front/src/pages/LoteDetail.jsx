@@ -206,7 +206,7 @@ export default function LoteDetail() {
         <div className="printable-card bg-card border border-border rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="bg-white px-4 py-2 rounded-xl flex items-center justify-center w-full md:w-auto overflow-hidden shadow-sm border border-border/50">
             <img 
-              src={`http://localhost:3000/api/scan/barcode/${lote.id_lote}?type=code128`} 
+              src={`/api/scan/barcode/${lote.id_lote}?type=code128`} 
               alt={`Código de barras Code-128 ${lote.id_lote}`} 
               className="h-16 object-contain filter contrast-125"
             />

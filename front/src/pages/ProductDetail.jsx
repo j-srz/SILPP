@@ -116,7 +116,7 @@ export default function ProductDetail() {
                   {producto.codigos_barras.map(codigo => (
                     <div key={codigo} className="bg-white p-2 rounded-lg border border-border/50 shadow-sm">
                       <img 
-                        src={`http://localhost:3000/api/scan/barcode/${codigo}?type=ean13`} 
+                        src={`/api/scan/barcode/${codigo}?type=ean13`} 
                         alt={`Código de barras EAN-13 ${codigo}`} 
                         className="h-12 object-contain filter contrast-125"
                       />
