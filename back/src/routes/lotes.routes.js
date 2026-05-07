@@ -22,7 +22,7 @@ router.get('/search', megaBusqueda);
 // GET  /api/lotes/ubicaciones  — Catálogo de ubicaciones para filtros dinámicos
 router.get('/ubicaciones', listarUbicaciones);
 
-// GET  /api/lotes/:id          — Detalle completo ("Expediente Clínico")
+// GET  /api/lotes/:id          — Detalle completo 
 router.get('/:id', detalleLote);
 
 // GET  /api/lotes/:id/trazabilidad — Timeline de movimientos

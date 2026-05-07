@@ -143,7 +143,10 @@ export default function Scanner() {
 
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 280, height: 160 }, aspectRatio: 1.5 },
+        { 
+          fps: 10, 
+          // qrbox: { width: 280, height: 160 }, 
+          aspectRatio: 1.5 },
         (decodedText) => handleScan(decodedText),
         () => { /* each non-decoded frame — ignore */ }
       );

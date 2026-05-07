@@ -65,7 +65,7 @@ async function detalleProducto(req, res, next) {
       [sku]
     );
 
-    // 3. Todos los lotes activos con stock dinámico (FEFO)
+    // 3. Todos los lotes activos con stock dinámico 
     const [lotesRows] = await pool.execute(
       `SELECT
          l.id_lote, l.fecha_fabricacion, l.fecha_caducidad, l.status,
